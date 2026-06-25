@@ -6,9 +6,12 @@ Bootstrap context for future coding sessions. Read this first.
 
 Web app for transcribing handwritten text from uploaded images using the Claude
 API. Images and transcriptions are stored in Firebase. The UI shows an image and
-its transcription side-by-side; clicking a text segment scrolls the image to the
-estimated vertical position where that text appears. No authentication in v1.
+its transcription side-by-side. No authentication in v1.
 Original product spec: `prd.md`. Implementation plan: `plan.md`.
+
+Note: the original spec had a click-a-segment-to-scroll-the-image feature using
+per-segment position estimates. That was removed (the position matching was
+unreliable). Output is now plain transcription text.
 
 ## Stack
 
@@ -38,32 +41,36 @@ In `src/app/api/transcribe/route.ts`:
 - `client.messages.create({ model: "claude-sonnet-4-6", max_tokens, ... })`.
 - Image passed as a vision block: `{ type: "image", source: { type: "url",
   url: <firebase downloadURL> } }`.
-- Structured output via `output_config: { format: { type: "json_schema",
-  schema } }` (the canonical param — NOT the deprecated `output_format`).
-- Schema: `{ segments: [{ text: string, topPercent: number }] }`,
-  `additionalProperties: false`, all fields required. `topPercent` is 0–100,
-  where 0 = top of the image. Prompt Claude to split into sentence-sized pieces
-  and estimate each piece's vertical position.
+- The system prompt is `OCR_PROMPT` from `src/lib/prompt.ts` (shared so the
+  "View prompt" UI shows the exact same text). Its rules: produce complete
+  sentences (rejoin words hyphenated across line breaks, keep real hyphens);
+  read interlinear/marginal insertions and wrap them in `{ }`; wrap uncertain
+  readings in `[ ]` (`[?]`/`[illegible?]` for unknown, `[a/b]` for
+  alternatives).
+- The route returns plain text: `{ text: <transcription> }`. No JSON parsing,
+  no tool use — just the model's text block, trimmed.
 
 ## Data model (Firestore)
 
 - `images`: `{ id, name, storagePath, downloadURL, createdAt }`
-- `outputs`: `{ id, imageId, name, segments: Segment[], createdAt, updatedAt }`
+- `outputs`: `{ id, imageId, name, text: string, createdAt, updatedAt }`
   Multiple outputs per image; each OCR run = a new doc. Edit can **overwrite**
   (same doc) or **save as new** (new doc). Rename/remove supported on both
   images and outputs.
 
 Types live in `src/lib/types.ts`; all Firestore/Storage access goes through
-`src/lib/db.ts`.
+`src/lib/db.ts`. `listOutputs` filters by `imageId` only and sorts client-side
+to avoid needing a Firestore composite index.
 
 ## Key UI behavior
 
 `src/app/page.tsx` + `src/app/components/*`:
 
-- Left: image list — upload, rename, remove.
-- Right: side-by-side image pane (scroll container) + transcription pane.
-- Click a segment → set image pane `scrollTop = topPercent/100 * scrollHeight`,
-  highlight the active segment.
+- Left: collapsible image list — upload, rename, remove. Toggle with « (hide)
+  and the floating ☰ (show).
+- Right: side-by-side image pane + transcription pane (the transcription text,
+  with Edit / Rename / Remove and an output-tab per OCR run).
+- Toolbar: "Run OCR" and "View prompt" (opens a modal showing `OCR_PROMPT`).
 
 ## Commands
 

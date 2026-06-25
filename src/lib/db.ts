@@ -17,7 +17,7 @@ import {
   deleteObject,
 } from "firebase/storage";
 import { db, storage } from "./firebase";
-import type { ImageDoc, OutputDoc, Segment } from "./types";
+import type { ImageDoc, OutputDoc } from "./types";
 
 const IMAGES = "images";
 const OUTPUTS = "outputs";
@@ -67,10 +67,10 @@ export async function deleteImage(image: ImageDoc): Promise<void> {
 export async function createOutput(
   imageId: string,
   name: string,
-  segments: Segment[],
+  text: string,
 ): Promise<OutputDoc> {
   const now = Date.now();
-  const data = { imageId, name, segments, createdAt: now, updatedAt: now };
+  const data = { imageId, name, text, createdAt: now, updatedAt: now };
   const docRef = await addDoc(collection(db, OUTPUTS), data);
   return { id: docRef.id, ...data };
 }
@@ -89,11 +89,8 @@ export async function renameOutput(id: string, name: string): Promise<void> {
   await updateDoc(doc(db, OUTPUTS, id), { name });
 }
 
-export async function updateOutputSegments(
-  id: string,
-  segments: Segment[],
-): Promise<void> {
-  await updateDoc(doc(db, OUTPUTS, id), { segments, updatedAt: Date.now() });
+export async function updateOutputText(id: string, text: string): Promise<void> {
+  await updateDoc(doc(db, OUTPUTS, id), { text, updatedAt: Date.now() });
 }
 
 export async function deleteOutput(id: string): Promise<void> {

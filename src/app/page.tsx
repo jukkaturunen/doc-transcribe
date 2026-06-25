@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ImageDoc, OutputDoc, Segment } from "@/lib/types";
+import type { ImageDoc, OutputDoc } from "@/lib/types";
 import {
   uploadImage,
   listImages,
@@ -11,8 +11,9 @@ import {
   listOutputs,
   renameOutput,
   deleteOutput,
-  updateOutputSegments,
+  updateOutputText,
 } from "@/lib/db";
+import { OCR_PROMPT } from "@/lib/prompt";
 import ImageList from "./components/ImageList";
 import SideBySide from "./components/SideBySide";
 
@@ -23,6 +24,7 @@ export default function Home() {
   const [activeOutputId, setActiveOutputId] = useState<string | null>(null);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showPrompt, setShowPrompt] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState<{ text: string; error?: boolean } | null>(
@@ -88,12 +90,12 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Transcription failed.");
-      const segments: Segment[] = data.segments ?? [];
+      const text: string = data.text ?? "";
       const name = `Transcription ${outputs.length + 1}`;
-      const output = await createOutput(activeImage.id, name, segments);
+      const output = await createOutput(activeImage.id, name, text);
       setOutputs((prev) => [...prev, output]);
       setActiveOutputId(output.id);
-      setStatus({ text: `Done — ${segments.length} segments.` });
+      setStatus({ text: "Done." });
     } catch (e) {
       setStatus({ text: (e as Error).message, error: true });
     } finally {
@@ -120,19 +122,19 @@ export default function Home() {
     });
   }
 
-  async function handleOverwriteOutput(output: OutputDoc, segments: Segment[]) {
-    await updateOutputSegments(output.id, segments);
+  async function handleOverwriteOutput(output: OutputDoc, text: string) {
+    await updateOutputText(output.id, text);
     setOutputs((prev) =>
       prev.map((o) =>
-        o.id === output.id ? { ...o, segments, updatedAt: Date.now() } : o,
+        o.id === output.id ? { ...o, text, updatedAt: Date.now() } : o,
       ),
     );
   }
 
-  async function handleSaveAsNewOutput(segments: Segment[]) {
+  async function handleSaveAsNewOutput(text: string) {
     if (!activeImage) return;
     const name = `Transcription ${outputs.length + 1}`;
-    const output = await createOutput(activeImage.id, name, segments);
+    const output = await createOutput(activeImage.id, name, text);
     setOutputs((prev) => [...prev, output]);
     setActiveOutputId(output.id);
   }
@@ -181,6 +183,7 @@ export default function Home() {
               >
                 {running ? "Running…" : "Run OCR"}
               </button>
+              <button onClick={() => setShowPrompt(true)}>View prompt</button>
               <div className="spacer" />
               {status && (
                 <span className={`status${status.error ? " error" : ""}`}>
@@ -202,6 +205,20 @@ export default function Home() {
           </>
         )}
       </main>
+
+      {showPrompt && (
+        <div className="modal-overlay" onClick={() => setShowPrompt(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <strong>OCR prompt</strong>
+              <button className="icon-btn" onClick={() => setShowPrompt(false)}>
+                ✕
+              </button>
+            </div>
+            <pre className="prompt-text">{OCR_PROMPT}</pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
