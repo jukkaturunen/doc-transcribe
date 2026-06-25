@@ -11,6 +11,7 @@ interface Props {
   onSelect: (image: ImageDoc) => void;
   onRename: (image: ImageDoc) => void;
   onDelete: (image: ImageDoc) => void;
+  onToggle: () => void;
 }
 
 export default function ImageList({
@@ -21,12 +22,23 @@ export default function ImageList({
   onSelect,
   onRename,
   onDelete,
+  onToggle,
 }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
 
   return (
     <aside className="sidebar">
-      <h1>Doc Transcribe</h1>
+      <div className="sidebar-header">
+        <h1>Doc Transcribe</h1>
+        <button
+          className="icon-btn"
+          onClick={onToggle}
+          title="Hide sidebar"
+          aria-label="Hide sidebar"
+        >
+          «
+        </button>
+      </div>
 
       <label className="upload-label">
         {uploading ? "Uploading…" : "+ Upload image"}

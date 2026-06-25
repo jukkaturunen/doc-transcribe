@@ -22,6 +22,7 @@ export default function Home() {
   const [outputs, setOutputs] = useState<OutputDoc[]>([]);
   const [activeOutputId, setActiveOutputId] = useState<string | null>(null);
 
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState<{ text: string; error?: boolean } | null>(
@@ -137,18 +138,32 @@ export default function Home() {
   }
 
   return (
-    <div className="app">
-      <ImageList
-        images={images}
-        activeId={activeImage?.id ?? null}
-        uploading={uploading}
-        onUpload={handleUpload}
-        onSelect={selectImage}
-        onRename={handleRenameImage}
-        onDelete={handleDeleteImage}
-      />
+    <div className={`app${sidebarOpen ? "" : " sidebar-collapsed"}`}>
+      {sidebarOpen && (
+        <ImageList
+          images={images}
+          activeId={activeImage?.id ?? null}
+          uploading={uploading}
+          onUpload={handleUpload}
+          onSelect={selectImage}
+          onRename={handleRenameImage}
+          onDelete={handleDeleteImage}
+          onToggle={() => setSidebarOpen(false)}
+        />
+      )}
 
       <main className="main">
+        {!sidebarOpen && (
+          <button
+            className="icon-btn sidebar-show"
+            onClick={() => setSidebarOpen(true)}
+            title="Show sidebar"
+            aria-label="Show sidebar"
+          >
+            ☰
+          </button>
+        )}
+
         {!activeImage && (
           <div className="main-empty">
             Upload or select an image to get started.
