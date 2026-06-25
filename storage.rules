@@ -1,0 +1,11 @@
+rules_version = '2';
+
+// v1: no authentication. Open read/write.
+// TIGHTEN THIS once auth is added.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}
