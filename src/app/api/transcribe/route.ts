@@ -14,29 +14,38 @@ Split the transcription into segments roughly the size of a sentence (or a short
 line if sentences are not clear). For each segment, estimate where its text
 appears vertically in the image as a percentage from the TOP of the image:
 0 means the very top edge, 100 means the very bottom edge.
-Return the segments in natural reading order (top to bottom).
+Work in natural reading order (top to bottom), then call the
+record_transcription tool with all the segments.`;
 
-Respond with ONLY a JSON object, no markdown fences and no surrounding prose,
-matching exactly this shape:
-{"segments":[{"text":"<string>","topPercent":<number 0-100>}, ...]}`;
-
-/** Extract a JSON object from the model's text, tolerating stray fences/prose. */
-function parseSegments(raw: string): Segment[] {
-  let text = raw.trim();
-  // Strip ```json ... ``` fences if present.
-  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fence) text = fence[1].trim();
-  // Fall back to the first {...} block.
-  if (!text.startsWith("{")) {
-    const brace = text.match(/\{[\s\S]*\}/);
-    if (brace) text = brace[0];
-  }
-  const parsed = JSON.parse(text) as { segments?: Segment[] };
-  return (parsed.segments ?? []).map((s) => ({
-    text: String(s.text ?? ""),
-    topPercent: Math.max(0, Math.min(100, Number(s.topPercent) || 0)),
-  }));
-}
+// The tool's input schema IS our output shape. Forcing the model to call this
+// tool means the SDK returns an already-parsed object — no fragile text-JSON
+// parsing.
+const TOOL: Anthropic.Tool = {
+  name: "record_transcription",
+  description: "Record the transcribed handwriting as positioned segments.",
+  input_schema: {
+    type: "object",
+    properties: {
+      segments: {
+        type: "array",
+        description: "Transcription segments in top-to-bottom reading order.",
+        items: {
+          type: "object",
+          properties: {
+            text: { type: "string", description: "The transcribed text." },
+            topPercent: {
+              type: "number",
+              description:
+                "Vertical position from the top of the image, 0 (top) to 100 (bottom).",
+            },
+          },
+          required: ["text", "topPercent"],
+        },
+      },
+    },
+    required: ["segments"],
+  },
+};
 
 export async function POST(request: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -65,6 +74,8 @@ export async function POST(request: Request) {
       model: MODEL,
       max_tokens: 8000,
       system: SYSTEM_PROMPT,
+      tools: [TOOL],
+      tool_choice: { type: "tool", name: TOOL.name },
       messages: [
         {
           role: "user",
@@ -72,22 +83,27 @@ export async function POST(request: Request) {
             { type: "image", source: { type: "url", url: imageUrl } },
             {
               type: "text",
-              text: "Transcribe this handwritten image into positioned segments as JSON.",
+              text: "Transcribe this handwritten image and record the positioned segments.",
             },
           ],
         },
       ],
     });
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
+    const toolUse = response.content.find((b) => b.type === "tool_use");
+    if (!toolUse || toolUse.type !== "tool_use") {
       return NextResponse.json(
         { error: "No transcription returned." },
         { status: 502 },
       );
     }
 
-    const segments = parseSegments(textBlock.text);
+    const input = toolUse.input as { segments?: Array<{ text?: unknown; topPercent?: unknown }> };
+    const segments: Segment[] = (input.segments ?? []).map((s) => ({
+      text: String(s.text ?? ""),
+      topPercent: Math.max(0, Math.min(100, Number(s.topPercent) || 0)),
+    }));
+
     return NextResponse.json({ segments });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Transcription failed.";
