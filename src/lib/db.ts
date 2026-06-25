@@ -76,13 +76,13 @@ export async function createOutput(
 }
 
 export async function listOutputs(imageId: string): Promise<OutputDoc[]> {
-  const q = query(
-    collection(db, OUTPUTS),
-    where("imageId", "==", imageId),
-    orderBy("createdAt", "asc"),
-  );
+  // Filter by imageId only (single-field, no composite index needed) and sort
+  // by createdAt client-side.
+  const q = query(collection(db, OUTPUTS), where("imageId", "==", imageId));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<OutputDoc, "id">) }));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as Omit<OutputDoc, "id">) }))
+    .sort((a, b) => a.createdAt - b.createdAt);
 }
 
 export async function renameOutput(id: string, name: string): Promise<void> {
