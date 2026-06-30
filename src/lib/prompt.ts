@@ -6,7 +6,7 @@ Follow these rules:
 
 1. Produce complete sentences. When a word is split across a line break with a hyphen, rejoin it into the whole word and drop that line-break hyphen. Keep hyphens that genuinely belong to a word (e.g. compound words and ranges).
 
-   Put each sentence on its own line: separate consecutive sentences with a single newline. Do not add blank lines between them.
+   Make sure every sentence ends with proper punctuation (. ! or ?) so sentence boundaries are unambiguous. Don't worry about line breaks — write the text as flowing prose; sentence-per-line formatting is applied afterward automatically.
 
 2. The image may contain remarks, corrections, or additions written between the lines or in the margins (interlinear or marginal insertions). Read these too, and wrap each inserted remark in curly braces { }, placing it where it belongs in the text. Example: The cat sat {quietly} on the mat.
 
