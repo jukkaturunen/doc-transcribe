@@ -89,6 +89,7 @@ export default function Home() {
         body: JSON.stringify({ imageUrl: activeImage.downloadURL }),
       });
       const data = await res.json();
+      console.log("[transcribe] response:", data);
       if (!res.ok) throw new Error(data.error || "Transcription failed.");
       const text: string = data.text ?? "";
       const name = `Transcription ${outputs.length + 1}`;
