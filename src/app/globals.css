@@ -197,14 +197,29 @@ textarea {
 
 .split {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 6px 1fr;
   flex: 1;
   overflow: hidden;
 }
 
+.split-divider {
+  background: var(--border);
+  cursor: col-resize;
+  transition: background 0.15s;
+}
+
+.split-divider:hover,
+.split-divider:active {
+  background: var(--accent);
+}
+
+body.col-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
 .image-pane {
   overflow-y: auto;
-  border-right: 1px solid var(--border);
   background: #2b2b30;
   position: relative;
 }
