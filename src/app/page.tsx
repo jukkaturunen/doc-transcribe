@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ImageDoc, OutputDoc } from "@/lib/types";
+import type { ImageDoc, OutputDoc, Sentence } from "@/lib/types";
 import {
   uploadImage,
   listImages,
@@ -11,8 +11,9 @@ import {
   listOutputs,
   renameOutput,
   deleteOutput,
-  updateOutputText,
+  updateOutputSentences,
 } from "@/lib/db";
+import { translateTexts } from "@/lib/translate";
 import { OCR_PROMPT } from "@/lib/prompt";
 import ImageList from "./components/ImageList";
 import SideBySide from "./components/SideBySide";
@@ -91,9 +92,14 @@ export default function Home() {
       const data = await res.json();
       console.log("[transcribe] response:", data);
       if (!res.ok) throw new Error(data.error || "Transcription failed.");
-      const text: string = data.text ?? "";
+      const rawSentences: string[] = data.sentences ?? [];
+      const sentences: Sentence[] = rawSentences.map((source) => ({
+        id: crypto.randomUUID(),
+        source,
+        translation: "",
+      }));
       const name = `Transcription ${outputs.length + 1}`;
-      const output = await createOutput(activeImage.id, name, text);
+      const output = await createOutput(activeImage.id, name, sentences);
       setOutputs((prev) => [...prev, output]);
       setActiveOutputId(output.id);
       setStatus({ text: "Done." });
@@ -123,21 +129,75 @@ export default function Home() {
     });
   }
 
-  async function handleOverwriteOutput(output: OutputDoc, text: string) {
-    await updateOutputText(output.id, text);
+  // Persist a new sentences array for an output (local state + Firestore).
+  async function persistSentences(outputId: string, sentences: Sentence[]) {
     setOutputs((prev) =>
       prev.map((o) =>
-        o.id === output.id ? { ...o, text, updatedAt: Date.now() } : o,
+        o.id === outputId ? { ...o, sentences, updatedAt: Date.now() } : o,
       ),
     );
+    await updateOutputSentences(outputId, sentences);
   }
 
-  async function handleSaveAsNewOutput(text: string) {
-    if (!activeImage) return;
-    const name = `Transcription ${outputs.length + 1}`;
-    const output = await createOutput(activeImage.id, name, text);
-    setOutputs((prev) => [...prev, output]);
-    setActiveOutputId(output.id);
+  async function handleEditSentence(
+    output: OutputDoc,
+    sentenceId: string,
+    source: string,
+  ) {
+    const sentences = output.sentences.map((s) =>
+      s.id === sentenceId ? { ...s, source } : s,
+    );
+    await persistSentences(output.id, sentences);
+  }
+
+  async function handleDeleteSentence(output: OutputDoc, sentenceId: string) {
+    const sentences = output.sentences.filter((s) => s.id !== sentenceId);
+    await persistSentences(output.id, sentences);
+  }
+
+  async function handleTranslateAll(output: OutputDoc) {
+    setStatus({ text: "Translating…" });
+    try {
+      const translations = await translateTexts(
+        output.sentences.map((s) => s.source),
+      );
+      const sentences = output.sentences.map((s, i) => ({
+        ...s,
+        translation: translations[i] ?? s.translation,
+      }));
+      await persistSentences(output.id, sentences);
+      setStatus({ text: "Translated." });
+    } catch (e) {
+      setStatus({ text: (e as Error).message, error: true });
+    }
+  }
+
+  async function handleTranslateSentence(
+    output: OutputDoc,
+    sentenceId: string,
+  ) {
+    const target = output.sentences.find((s) => s.id === sentenceId);
+    if (!target) return;
+    const [translation] = await translateTexts([target.source]);
+    const sentences = output.sentences.map((s) =>
+      s.id === sentenceId ? { ...s, translation: translation ?? "" } : s,
+    );
+    await persistSentences(output.id, sentences);
+  }
+
+  function handleExport(output: OutputDoc) {
+    const transcription = output.sentences.map((s) => s.source).join("\n\n");
+    const translation = output.sentences.map((s) => s.translation).join("\n\n");
+    const content = `${transcription}\n\n--- Käännös / Translation ---\n\n${translation}\n`;
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${output.name}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -200,8 +260,11 @@ export default function Home() {
               onSelectOutput={setActiveOutputId}
               onRenameOutput={handleRenameOutput}
               onDeleteOutput={handleDeleteOutput}
-              onOverwriteOutput={handleOverwriteOutput}
-              onSaveAsNewOutput={handleSaveAsNewOutput}
+              onEditSentence={handleEditSentence}
+              onDeleteSentence={handleDeleteSentence}
+              onTranslateAll={handleTranslateAll}
+              onTranslateSentence={handleTranslateSentence}
+              onExport={handleExport}
             />
           </>
         )}

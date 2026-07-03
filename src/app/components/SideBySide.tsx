@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ImageDoc, OutputDoc } from "@/lib/types";
-import OutputEditor from "./OutputEditor";
+import SentenceRow from "./SentenceRow";
 
 interface Props {
   image: ImageDoc;
@@ -11,8 +11,15 @@ interface Props {
   onSelectOutput: (id: string) => void;
   onRenameOutput: (output: OutputDoc) => void;
   onDeleteOutput: (output: OutputDoc) => void;
-  onOverwriteOutput: (output: OutputDoc, text: string) => void;
-  onSaveAsNewOutput: (text: string) => void;
+  onEditSentence: (
+    output: OutputDoc,
+    sentenceId: string,
+    source: string,
+  ) => void;
+  onDeleteSentence: (output: OutputDoc, sentenceId: string) => void;
+  onTranslateAll: (output: OutputDoc) => Promise<void>;
+  onTranslateSentence: (output: OutputDoc, sentenceId: string) => Promise<void>;
+  onExport: (output: OutputDoc) => void;
 }
 
 export default function SideBySide({
@@ -22,10 +29,13 @@ export default function SideBySide({
   onSelectOutput,
   onRenameOutput,
   onDeleteOutput,
-  onOverwriteOutput,
-  onSaveAsNewOutput,
+  onEditSentence,
+  onDeleteSentence,
+  onTranslateAll,
+  onTranslateSentence,
+  onExport,
 }: Props) {
-  const [editing, setEditing] = useState(false);
+  const [translatingAll, setTranslatingAll] = useState(false);
 
   const splitRef = useRef<HTMLDivElement>(null);
   const [ratio, setRatio] = useState(0.5); // fraction of width given to the image pane
@@ -60,6 +70,16 @@ export default function SideBySide({
   const activeOutput =
     outputs.find((o) => o.id === activeOutputId) ?? outputs[0] ?? null;
 
+  async function translateAll() {
+    if (!activeOutput) return;
+    setTranslatingAll(true);
+    try {
+      await onTranslateAll(activeOutput);
+    } finally {
+      setTranslatingAll(false);
+    }
+  }
+
   return (
     <div
       className="split"
@@ -93,10 +113,7 @@ export default function SideBySide({
                 className={`output-tab${
                   o.id === activeOutput?.id ? " active" : ""
                 }`}
-                onClick={() => {
-                  onSelectOutput(o.id);
-                  setEditing(false);
-                }}
+                onClick={() => onSelectOutput(o.id)}
               >
                 {o.name}
               </button>
@@ -104,10 +121,22 @@ export default function SideBySide({
           </div>
         )}
 
-        {activeOutput && !editing && (
+        {activeOutput && (
           <>
             <div className="editor-actions" style={{ marginTop: 0 }}>
-              <button onClick={() => setEditing(true)}>Edit</button>
+              <button
+                className="primary"
+                onClick={translateAll}
+                disabled={translatingAll || activeOutput.sentences.length === 0}
+              >
+                {translatingAll ? "Translating…" : "Translate all"}
+              </button>
+              <button
+                onClick={() => onExport(activeOutput)}
+                disabled={activeOutput.sentences.length === 0}
+              >
+                Export
+              </button>
               <button onClick={() => onRenameOutput(activeOutput)}>
                 Rename
               </button>
@@ -118,23 +147,21 @@ export default function SideBySide({
                 Remove
               </button>
             </div>
-            <div className="transcription-text">{activeOutput.text}</div>
-          </>
-        )}
 
-        {activeOutput && editing && (
-          <OutputEditor
-            output={activeOutput}
-            onCancel={() => setEditing(false)}
-            onOverwrite={(text) => {
-              onOverwriteOutput(activeOutput, text);
-              setEditing(false);
-            }}
-            onSaveAsNew={(text) => {
-              onSaveAsNewOutput(text);
-              setEditing(false);
-            }}
-          />
+            <div className="sentence-list">
+              {activeOutput.sentences.map((s) => (
+                <SentenceRow
+                  key={s.id}
+                  sentence={s}
+                  onEdit={(source) =>
+                    onEditSentence(activeOutput, s.id, source)
+                  }
+                  onDelete={() => onDeleteSentence(activeOutput, s.id)}
+                  onTranslate={() => onTranslateSentence(activeOutput, s.id)}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

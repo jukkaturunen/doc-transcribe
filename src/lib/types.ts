@@ -9,12 +9,19 @@ export interface ImageDoc {
   createdAt: number;
 }
 
+/** One transcribed sentence and its (optional) translation. */
+export interface Sentence {
+  id: string; // stable React key + identity (crypto.randomUUID())
+  source: string; // transcribed sentence (Swedish)
+  translation: string; // "" until translated (Finnish)
+}
+
 /** A transcription output for an image. Multiple outputs per image allowed. */
 export interface OutputDoc {
   id: string;
   imageId: string;
   name: string;
-  text: string;
+  sentences: Sentence[];
   createdAt: number;
   updatedAt: number;
 }

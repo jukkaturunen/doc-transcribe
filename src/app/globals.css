@@ -254,19 +254,79 @@ body.col-resizing {
   color: #fff;
 }
 
-.transcription-text {
-  margin-top: 12px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.6;
+.sentence-list {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px; /* the "empty line between sentences" spacing */
 }
 
-.edit-textarea {
-  margin-top: 12px;
-  min-height: 50vh;
-  resize: vertical;
-  line-height: 1.6;
+.sentence-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sentence-source {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.sentence-input {
+  flex: 1;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 6px;
+  margin: 0;
   font-family: inherit;
+  font-size: inherit;
+  line-height: 1.5;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: var(--text);
+}
+
+.sentence-input:hover {
+  border-color: var(--border);
+}
+
+.sentence-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--panel);
+}
+
+.sentence-delete {
+  flex: 0 0 auto;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 4px 6px;
+  color: var(--muted);
+}
+
+.sentence-delete:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.sentence-translate {
+  flex: 0 0 auto;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 4px 6px;
+}
+
+.sentence-translation {
+  /* Align under the source text, past the left delete button. */
+  margin-left: 34px;
+  padding-left: 8px;
+  border-left: 2px solid var(--accent-soft);
+  color: var(--accent);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .editor-actions {

@@ -17,7 +17,8 @@ import {
   deleteObject,
 } from "firebase/storage";
 import { db, storage } from "./firebase";
-import type { ImageDoc, OutputDoc } from "./types";
+import type { ImageDoc, OutputDoc, Sentence } from "./types";
+import { splitIntoSentences } from "./sentences";
 
 const IMAGES = "images";
 const OUTPUTS = "outputs";
@@ -67,12 +68,34 @@ export async function deleteImage(image: ImageDoc): Promise<void> {
 export async function createOutput(
   imageId: string,
   name: string,
-  text: string,
+  sentences: Sentence[],
 ): Promise<OutputDoc> {
   const now = Date.now();
-  const data = { imageId, name, text, createdAt: now, updatedAt: now };
+  const data = { imageId, name, sentences, createdAt: now, updatedAt: now };
   const docRef = await addDoc(collection(db, OUTPUTS), data);
   return { id: docRef.id, ...data };
+}
+
+// Normalize a raw Firestore output doc into an OutputDoc. Legacy docs stored a
+// single `text` blob and no `sentences`; derive sentences from it on read.
+function normalizeOutput(id: string, raw: Record<string, unknown>): OutputDoc {
+  const base = {
+    id,
+    imageId: raw.imageId as string,
+    name: raw.name as string,
+    createdAt: raw.createdAt as number,
+    updatedAt: raw.updatedAt as number,
+  };
+  if (Array.isArray(raw.sentences)) {
+    return { ...base, sentences: raw.sentences as Sentence[] };
+  }
+  const text = typeof raw.text === "string" ? raw.text : "";
+  const sentences: Sentence[] = splitIntoSentences(text).map((source) => ({
+    id: crypto.randomUUID(),
+    source,
+    translation: "",
+  }));
+  return { ...base, sentences };
 }
 
 export async function listOutputs(imageId: string): Promise<OutputDoc[]> {
@@ -81,7 +104,7 @@ export async function listOutputs(imageId: string): Promise<OutputDoc[]> {
   const q = query(collection(db, OUTPUTS), where("imageId", "==", imageId));
   const snap = await getDocs(q);
   return snap.docs
-    .map((d) => ({ id: d.id, ...(d.data() as Omit<OutputDoc, "id">) }))
+    .map((d) => normalizeOutput(d.id, d.data()))
     .sort((a, b) => a.createdAt - b.createdAt);
 }
 
@@ -89,8 +112,11 @@ export async function renameOutput(id: string, name: string): Promise<void> {
   await updateDoc(doc(db, OUTPUTS, id), { name });
 }
 
-export async function updateOutputText(id: string, text: string): Promise<void> {
-  await updateDoc(doc(db, OUTPUTS, id), { text, updatedAt: Date.now() });
+export async function updateOutputSentences(
+  id: string,
+  sentences: Sentence[],
+): Promise<void> {
+  await updateDoc(doc(db, OUTPUTS, id), { sentences, updatedAt: Date.now() });
 }
 
 export async function deleteOutput(id: string): Promise<void> {
