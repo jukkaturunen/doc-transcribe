@@ -15,6 +15,7 @@ import {
 } from "@/lib/db";
 import { translateTexts } from "@/lib/translate";
 import { OCR_PROMPT } from "@/lib/prompt";
+import { MODELS, EFFORTS, DEFAULT_MODEL, findModel } from "@/lib/models";
 import ImageList from "./components/ImageList";
 import SideBySide from "./components/SideBySide";
 
@@ -28,6 +29,9 @@ export default function Home() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [running, setRunning] = useState(false);
+  const [model, setModel] = useState(DEFAULT_MODEL);
+  const [effort, setEffort] = useState("default");
+  const effortSupported = findModel(model)?.supportsEffort ?? false;
   const [status, setStatus] = useState<{ text: string; error?: boolean } | null>(
     null,
   );
@@ -92,7 +96,11 @@ export default function Home() {
       const res = await fetch("/api/transcribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl: activeImage.downloadURL }),
+        body: JSON.stringify({
+          imageUrl: activeImage.downloadURL,
+          model,
+          effort,
+        }),
       });
       const data = await res.json();
       console.log("[transcribe] response:", data);
@@ -104,7 +112,11 @@ export default function Home() {
         translation: "",
       }));
       const name = `Transcription ${outputs.length + 1}`;
-      const output = await createOutput(activeImage.id, name, sentences);
+      const output = await createOutput(activeImage.id, name, sentences, {
+        model: data.model,
+        effort: data.effort,
+        usage: data.usage,
+      });
       setOutputs((prev) => [...prev, output]);
       setActiveOutputId(output.id);
       setStatus({ text: "Done." });
@@ -250,6 +262,35 @@ export default function Home() {
               >
                 {running ? "Running…" : "Run OCR"}
               </button>
+              <label className="field">
+                Model
+                <select value={model} onChange={(e) => setModel(e.target.value)}>
+                  {MODELS.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                Effort
+                <select
+                  value={effortSupported ? effort : "default"}
+                  disabled={!effortSupported}
+                  onChange={(e) => setEffort(e.target.value)}
+                  title={
+                    effortSupported
+                      ? undefined
+                      : "This model does not support the effort parameter."
+                  }
+                >
+                  {EFFORTS.map((e) => (
+                    <option key={e} value={e}>
+                      {effortSupported ? e : "n/a"}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <button onClick={() => setShowPrompt(true)}>View prompt</button>
               <div className="spacer" />
               {status && (

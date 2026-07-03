@@ -16,8 +16,15 @@ export interface Sentence {
   translation: string; // "" until translated (Finnish)
 }
 
+/** Token usage + which model/effort produced an output (for A/B + cost). */
+export interface OutputMeta {
+  model?: string; // API model id, e.g. "claude-opus-4-8"
+  effort?: string; // "low" | "medium" | "high"; omitted when default/unsupported
+  usage?: { inputTokens: number; outputTokens: number };
+}
+
 /** A transcription output for an image. Multiple outputs per image allowed. */
-export interface OutputDoc {
+export interface OutputDoc extends OutputMeta {
   id: string;
   imageId: string;
   name: string;

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ImageDoc, OutputDoc } from "@/lib/types";
+import { findModel, estimateCost } from "@/lib/models";
 import SentenceRow from "./SentenceRow";
 
 interface Props {
@@ -69,6 +70,16 @@ export default function SideBySide({
 
   const activeOutput =
     outputs.find((o) => o.id === activeOutputId) ?? outputs[0] ?? null;
+
+  // "Opus 4.8 · effort: high · ~$0.011" — pieces missing on legacy outputs are omitted.
+  function metaLine(o: OutputDoc): string | null {
+    const parts: string[] = [];
+    if (o.model) parts.push(findModel(o.model)?.label ?? o.model);
+    if (o.effort) parts.push(`effort: ${o.effort}`);
+    const cost = estimateCost(o.model, o.usage?.inputTokens, o.usage?.outputTokens);
+    if (cost != null) parts.push(`~$${cost.toFixed(cost < 0.01 ? 4 : 3)}`);
+    return parts.length ? parts.join(" · ") : null;
+  }
 
   async function translateAll() {
     if (!activeOutput) return;
@@ -147,6 +158,10 @@ export default function SideBySide({
                 Remove
               </button>
             </div>
+
+            {metaLine(activeOutput) && (
+              <div className="output-meta">{metaLine(activeOutput)}</div>
+            )}
 
             <div className="sentence-list">
               {activeOutput.sentences.map((s) => (

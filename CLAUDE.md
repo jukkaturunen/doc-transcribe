@@ -33,8 +33,15 @@ unreliable). Output is a list of sentences (source + translation).
   key. Local dev uses `.env.local` (gitignored); `.env.local.example` documents
   every variable. `APP_PASSWORD` / `APP_SESSION_SECRET` (the auth gate) are also
   server-side only — never `NEXT_PUBLIC_*`.
-- **Model is `claude-sonnet-4-6`** (user-specified). It supports vision +
-  structured outputs. Do not silently swap models.
+- **The OCR model is user-selectable at runtime** (a dropdown in the toolbar),
+  not a hardcoded constant. The allowlist + prices + effort support live in
+  `src/lib/models.ts`; the default is `claude-sonnet-4-6` (`DEFAULT_MODEL`). The
+  client sends `model` (+ optional `effort`) per request; the route validates
+  against the allowlist and falls back to the default on anything unknown. Add
+  new models only in `src/lib/models.ts`. Recommended for handwriting: Sonnet 5
+  (`claude-sonnet-5`) or Opus 4.8 (both higher-capability; Opus has high-res
+  vision). Haiku 4.5 does **not** support the `effort` parameter (it 400s), so
+  the route drops effort for it.
 - Firebase public config may be committed. Firestore/Storage rules are **open**
   for v1 (see `firestore.rules`, `storage.rules`).
 
@@ -42,7 +49,11 @@ unreliable). Output is a list of sentences (source + translation).
 
 In `src/app/api/transcribe/route.ts`:
 
-- `client.messages.create({ model: "claude-sonnet-4-6", max_tokens, ... })`.
+- `client.messages.create({ model, max_tokens, ... })` where `model` comes from
+  the request (validated against `src/lib/models.ts`). When the request includes
+  a real `effort` (`low`/`medium`/`high`) and the model supports it, the route
+  adds `output_config: { effort }` (GA, no beta header; cast because the installed
+  SDK types may lag). Effort is dropped for `default` and for Haiku 4.5.
 - Image passed as a vision block: `{ type: "image", source: { type: "url",
   url: <firebase downloadURL> } }`.
 - The system prompt is `OCR_PROMPT` from `src/lib/prompt.ts` (shared so the
@@ -51,9 +62,12 @@ In `src/app/api/transcribe/route.ts`:
   read interlinear/marginal insertions and wrap them in `{ }`; wrap uncertain
   readings in `[ ]` (`[?]`/`[illegible?]` for unknown, `[a/b]` for
   alternatives).
-- The route returns `{ sentences: string[] }`. It takes the model's single text
-  block and splits it with `splitIntoSentences` from `src/lib/sentences.ts`
-  (deterministic, bracket-aware, handles decimals/abbreviations). No tool use.
+- The route returns `{ sentences: string[], model, effort, usage: {
+  inputTokens, outputTokens } }`. It splits the model's text block with
+  `splitIntoSentences` from `src/lib/sentences.ts` (deterministic, bracket-aware,
+  handles decimals/abbreviations). No tool use. `usage` drives the per-run cost
+  estimate (the API returns tokens, not dollars — cost = tokens × per-model rate
+  from `src/lib/models.ts`, shown under the active output tab).
 
 ## Translation (Google Cloud Translation v2)
 
@@ -90,9 +104,11 @@ the password.
 ## Data model (Firestore)
 
 - `images`: `{ id, name, storagePath, downloadURL, createdAt }`
-- `outputs`: `{ id, imageId, name, sentences: Sentence[], createdAt, updatedAt }`
-  where `Sentence = { id, source, translation }` (`translation` is `""` until
-  translated). Multiple outputs per image; each OCR run = a new doc. Sentence
+- `outputs`: `{ id, imageId, name, sentences: Sentence[], createdAt, updatedAt,
+  model?, effort?, usage? }` where `Sentence = { id, source, translation }`
+  (`translation` is `""` until translated) and `model`/`effort`/`usage` record
+  which model produced the run (for A/B + cost; optional, back-filled absent on
+  legacy docs). Multiple outputs per image; each OCR run = a new doc. Sentence
   edits + translations auto-save in place (`updateOutputSentences`). Rename/remove
   supported on both images and outputs.
 
@@ -116,8 +132,10 @@ to avoid needing a Firestore composite index, and `normalizeOutput` back-fills
   toolbar: **Translate all**, **Export** (downloads a `.txt` — full
   transcription, then full translation), Rename, Remove, plus an output-tab per
   OCR run.
-- Top toolbar (only when an image is selected): "Run OCR", "View prompt" (modal
-  showing `OCR_PROMPT`).
+- Top toolbar (only when an image is selected): "Run OCR", **Model** and
+  **Effort** dropdowns (from `src/lib/models.ts`; Effort disabled/"n/a" for Haiku
+  4.5), and "View prompt" (modal showing `OCR_PROMPT`). The active output shows a
+  meta line with its model · effort · estimated cost.
 
 ## Commands
 

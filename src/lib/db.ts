@@ -17,7 +17,7 @@ import {
   deleteObject,
 } from "firebase/storage";
 import { db, storage } from "./firebase";
-import type { ImageDoc, OutputDoc, Sentence } from "./types";
+import type { ImageDoc, OutputDoc, OutputMeta, Sentence } from "./types";
 import { splitIntoSentences } from "./sentences";
 
 const IMAGES = "images";
@@ -69,9 +69,22 @@ export async function createOutput(
   imageId: string,
   name: string,
   sentences: Sentence[],
+  meta: OutputMeta = {},
 ): Promise<OutputDoc> {
   const now = Date.now();
-  const data = { imageId, name, sentences, createdAt: now, updatedAt: now };
+  // Drop undefined fields — Firestore rejects them.
+  const cleanMeta: OutputMeta = {};
+  if (meta.model) cleanMeta.model = meta.model;
+  if (meta.effort) cleanMeta.effort = meta.effort;
+  if (meta.usage) cleanMeta.usage = meta.usage;
+  const data = {
+    imageId,
+    name,
+    sentences,
+    ...cleanMeta,
+    createdAt: now,
+    updatedAt: now,
+  };
   const docRef = await addDoc(collection(db, OUTPUTS), data);
   return { id: docRef.id, ...data };
 }
@@ -85,6 +98,9 @@ function normalizeOutput(id: string, raw: Record<string, unknown>): OutputDoc {
     name: raw.name as string,
     createdAt: raw.createdAt as number,
     updatedAt: raw.updatedAt as number,
+    model: raw.model as string | undefined,
+    effort: raw.effort as string | undefined,
+    usage: raw.usage as OutputMeta["usage"],
   };
   if (Array.isArray(raw.sentences)) {
     return { ...base, sentences: raw.sentences as Sentence[] };
