@@ -14,11 +14,12 @@ export interface ModelInfo {
   supportsEffort: boolean;
 }
 
+// Ordered least → most capable (Haiku → Fable); this is the dropdown order.
 export const MODELS: ModelInfo[] = [
-  { id: "claude-opus-4-8", label: "Opus 4.8", inputPrice: 5, outputPrice: 25, supportsEffort: true },
-  { id: "claude-sonnet-5", label: "Sonnet 5", inputPrice: 2, outputPrice: 10, supportsEffort: true }, // intro pricing thru 2026-08-31
-  { id: "claude-sonnet-4-6", label: "Sonnet 4.6", inputPrice: 3, outputPrice: 15, supportsEffort: true },
   { id: "claude-haiku-4-5", label: "Haiku 4.5", inputPrice: 1, outputPrice: 5, supportsEffort: false },
+  { id: "claude-sonnet-4-6", label: "Sonnet 4.6", inputPrice: 3, outputPrice: 15, supportsEffort: true },
+  { id: "claude-sonnet-5", label: "Sonnet 5", inputPrice: 2, outputPrice: 10, supportsEffort: true }, // intro pricing thru 2026-08-31
+  { id: "claude-opus-4-8", label: "Opus 4.8", inputPrice: 5, outputPrice: 25, supportsEffort: true },
   { id: "claude-fable-5", label: "Fable 5", inputPrice: 10, outputPrice: 50, supportsEffort: true },
 ];
 
