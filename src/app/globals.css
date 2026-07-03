@@ -59,6 +59,7 @@ button.danger {
 }
 
 input[type="text"],
+input[type="password"],
 textarea {
   font: inherit;
   border: 1px solid var(--border);
@@ -67,6 +68,29 @@ textarea {
   width: 100%;
   background: #fff;
   color: var(--text);
+}
+
+.login-screen {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 280px;
+  padding: 24px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.login-card p {
+  margin: 0;
 }
 
 .app {
@@ -116,6 +140,17 @@ textarea {
   background: var(--panel);
   overflow-y: auto;
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.sidebar-footer button {
+  width: 100%;
 }
 
 .sidebar h1 {

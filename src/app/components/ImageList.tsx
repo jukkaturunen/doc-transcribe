@@ -12,6 +12,7 @@ interface Props {
   onRename: (image: ImageDoc) => void;
   onDelete: (image: ImageDoc) => void;
   onToggle: () => void;
+  onLogout: () => void;
 }
 
 export default function ImageList({
@@ -23,6 +24,7 @@ export default function ImageList({
   onRename,
   onDelete,
   onToggle,
+  onLogout,
 }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -74,6 +76,10 @@ export default function ImageList({
           </div>
         </div>
       ))}
+
+      <div className="sidebar-footer">
+        <button onClick={onLogout}>Log out</button>
+      </div>
     </aside>
   );
 }

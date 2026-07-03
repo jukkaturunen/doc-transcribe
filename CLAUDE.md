@@ -7,9 +7,9 @@ Bootstrap context for future coding sessions. Read this first.
 Web app for transcribing handwritten text from uploaded images using the Claude
 API. Images and transcriptions are stored in Firebase. The UI shows an image and
 its transcription side-by-side. Transcriptions are split into sentences; each
-sentence can be edited and translated (Swedish→Finnish) inline. No
-authentication in v1. Original product spec: `prd.md`. Implementation plan:
-`plan.md`.
+sentence can be edited and translated (Swedish→Finnish) inline. Access is gated
+by a single shared password (no user accounts) — see **Auth** below. Original
+product spec: `prd.md`. Implementation plan: `plan.md`.
 
 Note: the original spec had a click-a-segment-to-scroll-the-image feature using
 per-segment position estimates. That was removed (the position matching was
@@ -31,7 +31,8 @@ unreliable). Output is a list of sentences (source + translation).
   Translation v2) **only** inside `src/app/api/translate/route.ts`. Never import
   either into client code, never put them in `NEXT_PUBLIC_*`, never commit a real
   key. Local dev uses `.env.local` (gitignored); `.env.local.example` documents
-  both variables.
+  every variable. `APP_PASSWORD` / `APP_SESSION_SECRET` (the auth gate) are also
+  server-side only — never `NEXT_PUBLIC_*`.
 - **Model is `claude-sonnet-4-6`** (user-specified). It supports vision +
   structured outputs. Do not silently swap models.
 - Firebase public config may be committed. Firestore/Storage rules are **open**
@@ -65,6 +66,27 @@ In `src/app/api/translate/route.ts`:
 - Client calls it via `translateTexts` in `src/lib/translate.ts` (used for both
   "Translate all" and per-sentence re-translate).
 
+## Auth (single shared password)
+
+No accounts — one password gates the whole app **and** the paid API routes.
+Stateless bearer-cookie model:
+
+- `src/middleware.ts` runs on every route except `/login`, `/api/login`, and
+  static assets (see its `matcher`). It allows a request only when the
+  `dt_session` cookie matches `APP_SESSION_SECRET` (constant-time compare).
+  Otherwise: `/api/*` → **401 JSON**, page navigations → **redirect to
+  `/login`**. This is the real protection — the middleware, not the UI.
+- `src/app/api/login/route.ts`: `POST` checks the submitted password against
+  `APP_PASSWORD` and, on success, sets the HttpOnly `dt_session` cookie
+  (`Secure` in prod, `SameSite=Lax`, 30-day). `DELETE` clears it (logout).
+- `src/app/login/page.tsx` is the login form; `page.tsx` has a "Log out" button.
+- Cookie name lives in `src/lib/auth.ts` (`SESSION_COOKIE`), shared by middleware
+  and the route so they can't drift.
+
+Rotating `APP_SESSION_SECRET` invalidates all existing sessions. The secret never
+reaches browser JS (HttpOnly), and the login form is the only thing that submits
+the password.
+
 ## Data model (Firestore)
 
 - `images`: `{ id, name, storagePath, downloadURL, createdAt }`
@@ -83,16 +105,19 @@ to avoid needing a Firestore composite index, and `normalizeOutput` back-fills
 
 `src/app/page.tsx` + `src/app/components/*`:
 
-- Left: collapsible image list — upload, rename, remove. Toggle with « (hide)
-  and the floating ☰ (show).
+- Left: collapsible image list — upload, rename, remove, and a **Log out**
+  button pinned to the sidebar footer. Toggle with « (hide) and the floating ☰
+  (show).
 - Right: image pane + transcription pane separated by a **draggable divider**
   (`.split-divider`, always adjustable). The transcription pane is a list of
   editable sentence rows (`SentenceRow`): each sentence auto-saves on blur and
-  shows its Finnish translation beneath it, with a small ⟳ per-sentence
-  re-translate button. Pane toolbar: **Translate all**, **Export** (downloads a
-  `.txt` — full transcription, then full translation), Rename, Remove, plus an
-  output-tab per OCR run.
-- Top toolbar: "Run OCR" and "View prompt" (opens a modal showing `OCR_PROMPT`).
+  shows its Finnish translation beneath it, with a small ✕ (left, deletes the
+  sentence + its translation) and a ⟳ per-sentence re-translate button. Pane
+  toolbar: **Translate all**, **Export** (downloads a `.txt` — full
+  transcription, then full translation), Rename, Remove, plus an output-tab per
+  OCR run.
+- Top toolbar (only when an image is selected): "Run OCR", "View prompt" (modal
+  showing `OCR_PROMPT`).
 
 ## Commands
 
@@ -107,11 +132,13 @@ to avoid needing a Firestore composite index, and `normalizeOutput` back-fills
 2. In the Firebase console for project `transcribe-78477`: enable **Firestore**
    and **Storage**; apply rules from `firestore.rules` / `storage.rules`.
 3. Create `.env.local` with `ANTHROPIC_API_KEY=...` (a rotated key — the one in
-   the original PRD was exposed and must not be used) and
+   the original PRD was exposed and must not be used),
    `GOOGLE_TRANSLATE_API_KEY=...` (enable "Cloud Translation API" in a Google
-   Cloud project, create an API key).
-4. On Vercel: set `ANTHROPIC_API_KEY` and `GOOGLE_TRANSLATE_API_KEY` in project
-   env vars.
+   Cloud project, create an API key), `APP_PASSWORD=...` (the login password),
+   and `APP_SESSION_SECRET=...` (a long random string, e.g. `openssl rand -hex
+   32`).
+4. On Vercel: set all four (`ANTHROPIC_API_KEY`, `GOOGLE_TRANSLATE_API_KEY`,
+   `APP_PASSWORD`, `APP_SESSION_SECRET`) in project env vars.
 
 ## Gotchas
 

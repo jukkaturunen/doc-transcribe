@@ -79,6 +79,11 @@ export default function Home() {
     }
   }
 
+  async function handleLogout() {
+    await fetch("/api/login", { method: "DELETE" });
+    window.location.href = "/login";
+  }
+
   async function runOcr() {
     if (!activeImage) return;
     setRunning(true);
@@ -212,6 +217,7 @@ export default function Home() {
           onRename={handleRenameImage}
           onDelete={handleDeleteImage}
           onToggle={() => setSidebarOpen(false)}
+          onLogout={handleLogout}
         />
       )}
 
